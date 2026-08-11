@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>랜덤 조배정 프로그램</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts: Inter & Noto Sans KR -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+        }
+        [x-cloak] { display: none !important; }
+        .group-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .group-card:hover {
+            transform: translateY(-4px);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen" x-data="groupMixer()" x-init="init()">
+
+    <div class="flex flex-col lg:flex-row min-h-screen">
+        
+        <!-- Sidebar: Settings -->
+        <aside class="w-full lg:w-96 bg-white border-r border-slate-200 p-6 flex flex-col gap-6 shadow-sm z-10">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-600 rounded-lg text-white">
+                    <i data-lucide="users-round" class="w-6 h-6"></i>
+                </div>
+                <h1 class="text-xl font-bold tracking-tight text-slate-800">랜덤 조배정 프로그램</h1>
+            </div>
+
+            <!-- Input Names -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-end">
+                    <label class="text-sm font-semibold text-slate-600">참가자 명단</label>
+                    <span class="text-xs text-slate-400" x-text="`총 ${nameList.length}명`"></span>
+                </div>
+                
+                <!-- Quick Generate -->
+                <div class="flex items-center gap-2 p-2 bg-slate-100 rounded-lg mb-2">
+                    <input 
+                        type="number" 
+                        x-model.number="genCount" 
+                        placeholder="인원수"
+                        class="w-20 px-2 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none">
+                    <button 
+                        @click="generateNames()" 
+                        class="text-xs bg-white border border-slate-200 px-2 py-1 rounded hover:bg-indigo-50 hover:text-indigo-600 transition-colors font-medium">
+                        학생 생성
+                    </button>
+                </div>
+
+                <textarea 
+                    x-model="inputContent"
+                    class="w-full h-56 p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none bg-slate-50"
+                    placeholder="이름을 직접 입력하거나 위에서 자동 생성하세요."></textarea>
+            </div>
+
+            <!-- Settings -->
+            <div class="space-y-4">
+                <label class="text-sm font-semibold text-slate-600">배정 옵션</label>
+                
+                <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg">
+                    <button 
+                        @click="mode = 'count'"
+                        :class="mode === 'count' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'"
+                        class="py-2 text-sm font-medium rounded-md transition-all">조 개수 기준</button>
+                    <button 
+                        @click="mode = 'size'"
+                        :class="mode === 'size' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'"
+                        class="py-2 text-sm font-medium rounded-md transition-all">조 인원 기준</button>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <input 
+                        type="number" 
+                        x-model.number="targetValue"
+                        min="1"
+                        class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <span class="text-sm font-medium text-slate-500 shrink-0" x-text="mode === 'count' ? '개 조' : '명씩'"></span>
+                </div>
+            </div>
+
+            <!-- Font Size Settings -->
+            <div class="space-y-3">
+                <label class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                    <i data-lucide="type" class="w-4 h-4 text-slate-500"></i>
+                    결과 글자 크기
+                </label>
+                
+                <div class="flex items-center gap-4">
+                    <input 
+                        type="range" 
+                        min="14" 
+                        max="36" 
+                        x-model.number="fontSize" 
+                        class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                    <span class="text-sm font-bold text-slate-700 w-12 text-right" x-text="`${fontSize}px`"></span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-lg text-xs font-semibold">
+                    <button 
+                        @click="fontSize = 16"
+                        :class="fontSize === 16 ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'"
+                        class="py-1.5 rounded transition-all">보통 (16px)</button>
+                    <button 
+                        @click="fontSize = 24"
+                        :class="fontSize === 24 ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'"
+                        class="py-1.5 rounded transition-all">크게 (24px)</button>
+                    <button 
+                        @click="fontSize = 32"
+                        :class="fontSize === 32 ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'"
+                        class="py-1.5 rounded transition-all">아주 크게 (32px)</button>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <button 
+                @click="mixGroups()"
+                :disabled="nameList.length === 0"
+                class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all transform active:scale-95 flex items-center justify-center gap-2">
+                <i data-lucide="shuffle" class="w-5 h-5"></i>
+                <span>조 배정하기</span>
+            </button>
+        </aside>
+
+        <!-- Main: Results -->
+        <main class="flex-1 p-6 lg:p-10 overflow-y-auto">
+            
+            <!-- Header & Actions -->
+            <div class="max-w-6xl mx-auto">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">배정 결과</h2>
+                        <p class="text-slate-500 text-sm mt-1" x-show="results.length > 0">공정하게 배정된 결과를 확인하세요.</p>
+                    </div>
+                    
+                    <div class="flex gap-2" x-show="results.length > 0" x-cloak>
+                        <button @click="drawPresentationOrder()" class="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors">
+                            <i data-lucide="shuffle" class="w-4 h-4"></i> 발표 순서 뽑기
+                        </button>
+                        <button @click="copyToClipboard()" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                            <i data-lucide="copy" class="w-4 h-4"></i> 복사하기
+                        </button>
+                        <button @click="downloadCSV()" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                            <i data-lucide="download" class="w-4 h-4"></i> CSV 저장
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Presentation Order Section -->
+                <div x-show="presentationOrder.length > 0" class="mb-8 p-6 bg-indigo-50 rounded-2xl border border-indigo-100" x-cloak>
+                    <h3 class="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                        <i data-lucide="mic-vocal" class="w-5 h-5"></i> 발표 순서
+                    </h3>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="(groupIndex, i) in presentationOrder" :key="i">
+                            <div class="px-4 py-2 bg-white rounded-lg shadow-sm border border-indigo-200 text-indigo-800 font-bold">
+                                <span class="text-xs text-indigo-500 mr-2" x-text="`순서 ${i+1}`"></span>
+                                <span x-text="`${groupIndex + 1}조`"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div x-show="results.length === 0" class="flex flex-col items-center justify-center py-32 text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                    <i data-lucide="layout-grid" class="w-16 h-16 mb-4 opacity-20"></i>
+                    <p class="text-lg font-medium">왼쪽에서 명단을 입력하고 배정을 시작하세요!</p>
+                </div>
+
+                <!-- Results Grid -->
+                <div 
+                    x-show="results.length > 0" 
+                    :style="`font-size: ${fontSize}px;`"
+                    class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" 
+                    x-cloak>
+                    <template x-for="(group, index) in results" :key="index">
+                        <div class="group-card bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                            <div class="px-5 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                                <span class="font-bold text-indigo-600" x-text="`${index + 1}조` "></span>
+                                <span class="text-[0.7em] font-semibold px-[0.6em] py-[0.2em] bg-indigo-50 text-indigo-600 rounded-full" x-text="`${group.length}명`"></span>
+                            </div>
+                            <div class="p-5">
+                                <ul class="space-y-2">
+                                    <template x-for="(name, nameIndex) in group" :key="nameIndex">
+                                        <li class="flex items-center gap-[0.6em] text-slate-700">
+                                            <div :class="nameIndex === 0 ? 'bg-amber-400' : 'bg-indigo-400'" class="w-[0.4em] h-[0.4em] rounded-full shrink-0"></div>
+                                            <span x-text="name" :class="nameIndex === 0 ? 'text-slate-900 font-bold' : 'font-medium'"></span>
+                                            <template x-if="nameIndex === 0">
+                                                <span class="text-[0.6em] px-[0.5em] py-[0.1em] bg-amber-100 text-amber-700 rounded font-bold ml-auto">조장</span>
+                                            </template>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div 
+        x-show="toast.show" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 transform translate-y-10"
+        x-transition:enter-end="opacity-100 transform translate-y-0"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100 transform translate-y-0"
+        x-transition:leave-end="opacity-0 transform translate-y-10"
+        class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-slate-800 text-white rounded-full shadow-2xl flex items-center gap-3"
+        x-cloak>
+        <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+        <span class="text-sm font-medium" x-text="toast.message"></span>
+    </div>
+
+    <script>
+        function groupMixer() {
+            return {
+                inputContent: '',
+                genCount: 20,
+                mode: 'count', // 'count' or 'size'
+                targetValue: 4,
+                fontSize: 18, // Default result font size (in px)
+                results: [],
+                presentationOrder: [],
+                toast: { show: false, message: '' },
+                
+                init() {
+                    lucide.createIcons();
+                    // Load state from localStorage
+                    const savedState = localStorage.getItem('groupMixerState');
+                    if (savedState) {
+                        const parsed = JSON.parse(savedState);
+                        this.inputContent = parsed.inputContent || '';
+                        this.genCount = parsed.genCount || 20;
+                        this.mode = parsed.mode || 'count';
+                        this.targetValue = parsed.targetValue || 4;
+                        this.fontSize = parsed.fontSize || 18;
+                        this.results = parsed.results || [];
+                        this.presentationOrder = parsed.presentationOrder || [];
+                    }
+                    
+                    // Watch for changes and save to localStorage
+                    this.$watch('inputContent', val => this.saveState());
+                    this.$watch('genCount', val => this.saveState());
+                    this.$watch('mode', val => this.saveState());
+                    this.$watch('targetValue', val => this.saveState());
+                    this.$watch('fontSize', val => this.saveState());
+                    this.$watch('results', val => this.saveState());
+                    this.$watch('presentationOrder', val => this.saveState());
+                },
+
+                saveState() {
+                    const state = {
+                        inputContent: this.inputContent,
+                        genCount: this.genCount,
+                        mode: this.mode,
+                        targetValue: this.targetValue,
+                        fontSize: this.fontSize,
+                        results: this.results,
+                        presentationOrder: this.presentationOrder
+                    };
+                    localStorage.setItem('groupMixerState', JSON.stringify(state));
+                },
+
+                get nameList() {
+                    return this.inputContent
+                        .split(/[,\n]/)
+                        .map(n => n.trim())
+                        .filter(n => n !== '');
+                },
+
+                generateNames() {
+                    if (!this.genCount || this.genCount < 1) {
+                        this.showToast('생성할 인원수를 입력해주세요.');
+                        return;
+                    }
+                    const names = [];
+                    for (let i = 1; i <= this.genCount; i++) {
+                        names.push(`학생 ${i}`);
+                    }
+                    this.inputContent = names.join('\n');
+                    this.showToast(`${this.genCount}명의 학생 명단이 생성되었습니다.`);
+                },
+
+                mixGroups() {
+                    let names = [...this.nameList];
+                    if (names.length === 0) return;
+
+                    // Shuffle (Fisher-Yates)
+                    for (let i = names.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [names[i], names[j]] = [names[j], names[i]];
+                    }
+
+                    const tempResults = [];
+                    if (this.mode === 'count') {
+                        const groupCount = Math.max(1, Math.min(this.targetValue, names.length));
+                        for (let i = 0; i < groupCount; i++) {
+                            tempResults.push([]);
+                        }
+                        names.forEach((name, index) => {
+                            tempResults[index % groupCount].push(name);
+                        });
+                    } else {
+                        const groupSize = Math.max(1, this.targetValue);
+                        for (let i = 0; i < names.length; i += groupSize) {
+                            tempResults.push(names.slice(i, i + groupSize));
+                        }
+                    }
+
+                    this.results = tempResults;
+                    this.presentationOrder = [];
+                    
+                    // Interaction
+                    this.showConfetti();
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                drawPresentationOrder() {
+                    if (this.results.length === 0) return;
+                    const order = Array.from({length: this.results.length}, (_, i) => i);
+                    for (let i = order.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [order[i], order[j]] = [order[j], order[i]];
+                    }
+                    this.presentationOrder = order;
+                    this.showToast('발표 순서가 추첨되었습니다.');
+                },
+
+                showConfetti() {
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 },
+                        colors: ['#4f46e5', '#818cf8', '#c7d2fe']
+                    });
+                },
+
+                copyToClipboard() {
+                    let text = "📋 조 배정 결과\n\n";
+                    this.results.forEach((group, i) => {
+                        text += `[${i + 1}조] (${group.length}명)\n`;
+                        text += group.map((name, idx) => idx === 0 ? `${name}(조장)` : name).join(', ') + "\n\n";
+                    });
+
+                    navigator.clipboard.writeText(text).then(() => {
+                        this.showToast('결과가 클립보드에 복사되었습니다.');
+                    });
+                },
+
+                downloadCSV() {
+                    let csvContent = "data:text/csv;charset=utf-8,Group,Name\n";
+                    this.results.forEach((group, i) => {
+                        group.forEach(name => {
+                            csvContent += `${i + 1}조,${name}\n`;
+                        });
+                    });
+                    
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "group_results.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+
+                showToast(msg) {
+                    this.toast.message = msg;
+                    this.toast.show = true;
+                    setTimeout(() => this.toast.show = false, 3000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
